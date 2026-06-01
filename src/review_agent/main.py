@@ -3,8 +3,8 @@ from rich.console import Console
 from rich.progress import track
 from typing import Optional
 from google.antigravity import Agent
-from .db import get_outliers
-from .tools import get_pr_diff, get_pr_comments
+from review_agent.db import get_outliers
+from review_agent.tools import get_pr_diff, get_pr_comments
 
 app = typer.Typer(help="Agentic Analysis for PR Outliers")
 console = Console()
