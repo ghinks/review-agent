@@ -1,0 +1,60 @@
+@startuml
+skinparam maxMessageSize 100
+skinparam ParticipantPadding 20
+
+actor User
+participant "main.py\nanalyze()" as Main
+participant "db.py" as DB
+participant "mp.Process" as MP
+participant "agent_worker" as Worker
+participant "Agent (LLM)" as Agent
+
+User -> Main: Run CLI (app) calls analyze()
+activate Main
+
+Main -> DB: get_outliers(db_path, repo)
+activate DB
+DB --> Main: List of outlier PRs
+deactivate DB
+
+loop For each outlier PR
+    Main -> Main: analyze_pr_with_timeout()
+    activate Main
+
+    Main -> MP: start()
+    activate MP
+
+    MP -> Worker: agent_worker(...)
+    activate Worker
+
+    Worker -> Worker: asyncio.run(run_single_agent_analysis())
+    activate Worker
+
+    Worker -> Agent: create_agent()
+    activate Agent
+    Agent --> Worker: Agent instance
+    deactivate Agent
+
+    Worker -> Agent: await agent.chat(prompt)
+    activate Agent
+    note right: Tools like get_pr_diff() and get_pr_comments() \ncan be called by the Agent here.
+    Agent --> Worker: Analysis text response
+    deactivate Agent
+
+    Worker -> MP: queue.put(result)
+    deactivate Worker
+    deactivate Worker
+
+    Main -> MP: process.join(timeout)
+    Main -> MP: queue.get_nowait()
+    MP --> Main: Return agent response
+    deactivate MP
+
+    deactivate Main
+end
+
+Main -> Main: Write aggregated results to output file
+Main --> User: "Analysis complete!"
+deactivate Main
+
+@enduml
