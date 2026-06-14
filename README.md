@@ -6,7 +6,7 @@ Agentic analysis of pull-request outliers.
 
 `review-agent` is a command-line tool that explains **why** a pull request was
 statistically flagged as an outlier. It reads pre-computed outlier PRs from a SQLite
-database, then hands each one to an LLM agent (`gemini-3.5-pro` via the
+database, then hands each one to an LLM agent (`gemini-2.5-pro` via the
 [`google-antigravity`](https://github.com/google-antigravity/antigravity-sdk-python)
 SDK). The agent uses GitHub tools to fetch the PR diff and review comments, reasons
 about the anomaly (a difficult refactor? a controversial architectural change? a long
@@ -23,8 +23,8 @@ See [`agentic_report.md`](agentic_report.md) for a sample of the generated outpu
   `proutlierscore.is_outlier = 1`)
 - A **GitHub token** (`GITHUB_TOKEN`) — recommended to avoid API rate limits and to
   access private repositories
-- **Credentials for the `google-antigravity` / Gemini SDK** so the agent can reach the
-  model (configured per that SDK's requirements)
+- A **Gemini API key** (`GEMINI_API_KEY`) — **required** so the agent can reach the
+  Gemini model via the `google-antigravity` SDK
 
 ## Installation
 
@@ -38,15 +38,16 @@ This creates a virtual environment and installs the `review-agent` console scrip
 
 ## Configuration
 
-Export your GitHub token before running:
+Export your Gemini API key and GitHub token before running:
 
 ```bash
+export GEMINI_API_KEY=your_gemini_api_key_here
 export GITHUB_TOKEN=ghp_your_token_here
 ```
 
-The token is optional but strongly recommended. The `google-antigravity` SDK also
-requires its own credentials to reach the Gemini model — set those up according to that
-SDK's documentation.
+`GEMINI_API_KEY` is **required** — the `google-antigravity` SDK reads it from the
+environment to authenticate against the Gemini model. `GITHUB_TOKEN` is optional but
+strongly recommended to avoid API rate limits and to access private repositories.
 
 ## Usage
 
