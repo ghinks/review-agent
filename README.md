@@ -6,11 +6,21 @@ Agentic analysis of pull-request outliers.
 
 `review-agent` is a command-line tool that explains **why** a pull request was
 statistically flagged as an outlier. It reads pre-computed outlier PRs from a SQLite
-database, then hands each one to an LLM agent (`gemini-2.5-pro` via the
-[`google-antigravity`](https://github.com/google-antigravity/antigravity-sdk-python)
-SDK). The agent uses GitHub tools to fetch the PR diff and review comments, reasons
-about the anomaly (a difficult refactor? a controversial architectural change? a long
-review?), and the results are written to a single Markdown report.
+database, then hands each one to an LLM agent. The agent uses GitHub tools to fetch the
+PR diff and review comments, reasons about the anomaly (a difficult refactor? a
+controversial architectural change? a long review?), and the results are written to a
+single Markdown report.
+
+The reasoning backend is pluggable — choose one with `--sdk`:
+
+| `--sdk`        | SDK                                                                                     | Model            |
+| -------------- | --------------------------------------------------------------------------------------- | ---------------- |
+| `antigravity`  | [`google-antigravity`](https://github.com/google-antigravity/antigravity-sdk-python)    | `gemini-2.5-pro` |
+| `openai`       | [`openai`](https://github.com/openai/openai-python)                                      | `gpt-5`          |
+| `anthropic`    | [`anthropic`](https://github.com/anthropics/anthropic-sdk-python)                        | `claude-opus-4-8`|
+
+`antigravity` (Gemini) is the default. Each backend lives in its own folder under
+`src/review_agent/providers/`.
 
 See [`agentic_report.md`](agentic_report.md) for a sample of the generated output.
 
@@ -23,8 +33,11 @@ See [`agentic_report.md`](agentic_report.md) for a sample of the generated outpu
   `proutlierscore.is_outlier = 1`)
 - A **GitHub token** (`GITHUB_TOKEN`) — recommended to avoid API rate limits and to
   access private repositories
-- A **Gemini API key** (`GEMINI_API_KEY`) — **required** so the agent can reach the
-  Gemini model via the `google-antigravity` SDK
+- An **API key for the SDK you select** — only the key for the chosen `--sdk` is needed
+  at runtime:
+  - `--sdk antigravity` (default) → `GEMINI_API_KEY`
+  - `--sdk openai` → `OPENAI_API_KEY`
+  - `--sdk anthropic` → `ANTHROPIC_API_KEY`
 
 ## Installation
 
@@ -38,16 +51,19 @@ This creates a virtual environment and installs the `review-agent` console scrip
 
 ## Configuration
 
-Export your Gemini API key and GitHub token before running:
+Export the API key for your chosen SDK plus a GitHub token before running. For the
+default (`antigravity`/Gemini):
 
 ```bash
-export GEMINI_API_KEY=your_gemini_api_key_here
+export GEMINI_API_KEY=your_gemini_api_key_here   # or OPENAI_API_KEY / ANTHROPIC_API_KEY
 export GITHUB_TOKEN=ghp_your_token_here
 ```
 
-`GEMINI_API_KEY` is **required** — the `google-antigravity` SDK reads it from the
-environment to authenticate against the Gemini model. `GITHUB_TOKEN` is optional but
-strongly recommended to avoid API rate limits and to access private repositories.
+The SDK reads its key from the environment to authenticate against the model — only the
+key for the SDK passed to `--sdk` is required (`GEMINI_API_KEY` for `antigravity`,
+`OPENAI_API_KEY` for `openai`, `ANTHROPIC_API_KEY` for `anthropic`). `GITHUB_TOKEN` is
+optional but strongly recommended to avoid API rate limits and to access private
+repositories.
 
 ## Usage
 
@@ -59,24 +75,27 @@ uv run review-agent analyze \
   --repo expressjs/express
 ```
 
-Write to a custom output file and limit how many PRs are analyzed:
+Pick a different reasoning SDK, write to a custom output file, and limit how many PRs
+are analyzed:
 
 ```bash
 uv run review-agent analyze \
   --db-path ./review_classification.db \
   --repo expressjs/express \
+  --sdk anthropic \
   --output express_report.md \
   --limit 5
 ```
 
 ### Options
 
-| Option       | Required | Default              | Description                                          |
-| ------------ | -------- | -------------------- | ---------------------------------------------------- |
-| `--db-path`  | yes      | —                    | Path to the `review_classification.db` SQLite file   |
-| `--repo`     | yes      | —                    | GitHub repository as `owner/repo`                    |
-| `--output`   | no       | `agentic_report.md`  | Output Markdown file                                 |
-| `--limit`    | no       | (all)                | Maximum number of outlier PRs to analyze             |
+| Option       | Required | Default              | Description                                                  |
+| ------------ | -------- | -------------------- | ----------------------------------------------------------- |
+| `--db-path`  | yes      | —                    | Path to the `review_classification.db` SQLite file          |
+| `--repo`     | yes      | —                    | GitHub repository as `owner/repo`                           |
+| `--sdk`      | no       | `antigravity`        | Reasoning SDK: `antigravity` \| `openai` \| `anthropic`     |
+| `--output`   | no       | `agentic_report.md`  | Output Markdown file                                        |
+| `--limit`    | no       | (all)                | Maximum number of outlier PRs to analyze                    |
 
 See all options with:
 
@@ -103,7 +122,14 @@ uv run mypy src        # type-check
 
 ```
 src/review_agent/
-├── main.py    # Typer CLI; the `analyze` command and agent orchestration
-├── db.py      # get_outliers(): loads outlier PRs from the SQLite database
-└── tools.py   # GitHub agent tools: get_pr_diff() and get_pr_comments()
+├── main.py        # Typer CLI; the `analyze` command and per-PR orchestration
+├── db.py          # get_outliers(): loads outlier PRs from the SQLite database
+├── tools.py       # SDK-agnostic GitHub tools: get_pr_diff() and get_pr_comments()
+├── prompts.py     # Shared system instructions and per-PR prompt builder
+└── providers/     # Pluggable reasoning backends (one folder per SDK)
+    ├── base.py        # AgentProvider protocol + Sdk enum
+    ├── __init__.py    # get_provider() factory (lazy per-SDK imports)
+    ├── antigravity/   # Gemini via google-antigravity (agent.chat loop)
+    ├── openai/        # GPT via the OpenAI Responses API (manual tool loop)
+    └── anthropic/     # Claude via the Anthropic Messages API (manual tool loop)
 ```
