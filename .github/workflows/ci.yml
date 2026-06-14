@@ -25,4 +25,10 @@ jobs:
       - name: Type check with Mypy
         run: uv run mypy .
       - name: Run Tests
-        run: uv run pytest
+        run: |
+          uv run pytest || status=$?
+          if [ "${status:-0}" -eq 5 ]; then
+            echo "No tests collected; continuing"
+            exit 0
+          fi
+          exit "${status:-0}"
