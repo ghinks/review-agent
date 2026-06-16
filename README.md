@@ -67,19 +67,35 @@ repositories.
 
 ## Usage
 
-Run the `analyze` command via `uv`:
+Analyze the outlier PRs from the database:
 
 ```bash
-uv run review-agent analyze \
+uv run review-agent \
   --db-path ./review_classification.db \
   --repo expressjs/express
 ```
+
+PRs can come from any combination of three sources: the outlier database
+(`--db-path`), specific PR numbers (`--pr`, repeatable), and/or a file of PR
+numbers (`--pr-file`). At least one source is required. Analyze specific PRs
+without touching the database:
+
+```bash
+uv run review-agent \
+  --repo expressjs/express \
+  --pr 1234 --pr 1240 \
+  --pr-file ./prs.txt
+```
+
+The `--pr-file` lists one PR number per line (a leading `#` and comma/space
+separated values are also accepted). Sources are merged and deduplicated by PR
+number; database records keep their statistical metadata.
 
 Pick a different reasoning SDK, write to a custom output file, and limit how many PRs
 are analyzed:
 
 ```bash
-uv run review-agent analyze \
+uv run review-agent \
   --db-path ./review_classification.db \
   --repo expressjs/express \
   --sdk anthropic \
@@ -89,18 +105,23 @@ uv run review-agent analyze \
 
 ### Options
 
-| Option       | Required | Default              | Description                                                  |
-| ------------ | -------- | -------------------- | ----------------------------------------------------------- |
-| `--db-path`  | yes      | —                    | Path to the `review_classification.db` SQLite file          |
-| `--repo`     | yes      | —                    | GitHub repository as `owner/repo`                           |
-| `--sdk`      | no       | `antigravity`        | Reasoning SDK: `antigravity` \| `openai` \| `anthropic`     |
-| `--output`   | no       | `agentic_report.md`  | Output Markdown file                                        |
-| `--limit`    | no       | (all)                | Maximum number of outlier PRs to analyze                    |
+| Option        | Required | Default              | Description                                                          |
+| ------------- | -------- | -------------------- | ------------------------------------------------------------------- |
+| `--repo`      | yes      | —                    | GitHub repository as `owner/repo`                                   |
+| `--db-path`   | no\*     | —                    | Path to the `review_classification.db` SQLite file (outlier PRs)    |
+| `--pr`        | no\*     | —                    | A specific PR number to analyze; repeat to add more                 |
+| `--pr-file`   | no\*     | —                    | Path to a file listing PR numbers to analyze                        |
+| `--from-date` | no       | (all)                | Only analyze DB outlier PRs created on/after midnight of `YYYY-MM-DD` |
+| `--sdk`       | no       | `antigravity`        | Reasoning SDK: `antigravity` \| `openai` \| `anthropic`             |
+| `--output`    | no       | `agentic_report.md`  | Output Markdown file                                                |
+| `--limit`     | no       | (all)                | Maximum number of PRs to analyze                                    |
+
+\* At least one of `--db-path`, `--pr`, or `--pr-file` is required.
 
 See all options with:
 
 ```bash
-uv run review-agent analyze --help
+uv run review-agent --help
 ```
 
 ## Output
@@ -124,6 +145,7 @@ uv run mypy src        # type-check
 src/review_agent/
 ├── main.py        # Typer CLI; the `analyze` command and per-PR orchestration
 ├── db.py          # get_outliers(): loads outlier PRs from the SQLite database
+├── pr_sources.py  # Loads PR numbers from --pr / --pr-file and merges with DB records
 ├── tools.py       # SDK-agnostic GitHub tools: get_pr_diff() and get_pr_comments()
 ├── prompts.py     # Shared system instructions and per-PR prompt builder
 └── providers/     # Pluggable reasoning backends (one folder per SDK)
