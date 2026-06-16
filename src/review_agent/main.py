@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing as mp
+from datetime import datetime
 from queue import Empty
 from typing import Any, Optional
 
@@ -51,6 +52,11 @@ def analyze(
     db_path: str = typer.Option(..., help="Path to the review_classification.db file"),
     repo: str = typer.Option(..., help="GitHub repository name (owner/repo)"),
     sdk: Sdk = typer.Option(Sdk.antigravity, help="Reasoning SDK: antigravity | openai | anthropic"),
+    from_date: Optional[datetime] = typer.Option(
+        None,
+        formats=["%Y-%m-%d"],
+        help="Only analyze PRs created on or after midnight of this date (YYYY-MM-DD)",
+    ),
     output: str = typer.Option("agentic_report.md", help="Output markdown file"),
     limit: Optional[int] = typer.Option(None, help="Limit number of PRs to analyze"),
     timeout: int = typer.Option(180, help="Timeout in seconds for each agent startup and analysis"),
@@ -58,7 +64,7 @@ def analyze(
     """Analyze outlier PRs using an LLM agent."""
     console.print(f"Fetching outliers for [bold]{repo}[/bold] from {db_path}...")
     try:
-        outliers = get_outliers(db_path, repo)
+        outliers = get_outliers(db_path, repo, from_date)
     except Exception as e:
         console.print(f"[bold red]Error reading database:[/bold red] {e}")
         raise typer.Exit(1)
